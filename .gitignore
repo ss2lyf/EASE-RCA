@@ -15,6 +15,9 @@ downloads/
 eggs/
 .eggs/
 lib/
+# Keep the vendored RCAEval dependency patches and their licenses.
+!/RCAEval/lib/
+!/RCAEval/lib/**/
 lib64/
 parts/
 sdist/

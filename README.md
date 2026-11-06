@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 Implementation of [**EASE-RCA: Evidence-aware service explanation with temporal responsibility for trace-topology-free microservice root cause analysis**](https://doi.org/10.1016/j.jss.2026.113166), *Journal of Systems and Software*, 2026.
 
-EASE-RCA ranks root-cause services using metric anomaly evidence, auxiliary log/trace time series, and temporal responsibility assignment. It does not require service call graphs or span-level call relations. The scripts below reproduce the RE2 main experiment and RE1 metric-only evaluation.
+EASE-RCA ranks root-cause services using metric anomaly evidence, auxiliary log/trace time series, and temporal responsibility assignment. It does not require service call graphs or span-level call relations. The scripts below cover the RE2 main experiment, RE1 metric-only evaluation, and RE3 code-fault evaluation.
 
 The bundled `RCAEval/` is based on [RCAEval](https://github.com/phamquiluan/RCAEval) v1.12.0, commit [`90b63a46ac1e969f1fa9015318b51e455c62f8c4`](https://github.com/phamquiluan/RCAEval/commit/90b63a46ac1e969f1fa9015318b51e455c62f8c4), with EASE integration. The method is implemented in [ease.py](RCAEval/RCAEval/e2e/ease.py).
 
@@ -21,12 +21,13 @@ python -m pip install --no-deps -e ./RCAEval
 
 ## 📥 Data
 
-Both suites cover Online Boutique (OB), Sock Shop (SS), and Train Ticket (TT).
+All three suites cover Online Boutique (OB), Sock Shop (SS), and Train Ticket (TT).
 
 | Suite | Input | Cases | Runner dataset names |
 | --- | --- | ---: | --- |
 | RE2 | TORAI-preprocessed metrics, logs, and trace time series; SS has no traces | 270 | `torai-ob`, `torai-ss`, `torai-tt` |
 | RE1 | Metrics only | 375 | `re1-ob`, `re1-ss`, `re1-tt` |
+| RE3 | Metrics and converted log/trace time series; SS has no usable traces | 90 | `re3-ob`, `re3-ss`, `re3-tt` |
 
 Download **RE2** from the [TORAI data release](https://doi.org/10.6084/m9.figshare.31925976):
 
@@ -55,6 +56,21 @@ ln -s RE1/RE1-TT RCAEval/data/train-ticket
 
 Each RE1 case contains `data.csv` and `inject_time.txt`. If the data is already present, use the existing directories or symlinks.
 
+Download **RE3** from the same [RCAEval Zenodo release](https://zenodo.org/records/14590730), then convert its raw logs and traces:
+
+```bash
+mkdir -p RCAEval/data/RE3
+for system in OB SS TT; do
+  curl -fL --retry 3 -o "RCAEval/data/RE3/RE3-${system}.zip" \
+    "https://zenodo.org/records/14590730/files/RE3-${system}.zip?download=1"
+  unzip -q -n "RCAEval/data/RE3/RE3-${system}.zip" -d RCAEval/data/RE3/
+  python scripts/re3_to_torai_timeseries.py \
+    --input-root "RCAEval/data/RE3/RE3-${system}"
+done
+```
+
+The converter is adapted from the paper's RE3 preprocessing script. It writes TORAI-style CSVs using 15-second buckets, retaining the top 50 service/template pairs per case for OB/SS (200 for TT) and 80 service/operation pairs from traces. Raw inputs and metric sampling are preserved.
+
 ## 🚀 Run
 
 From the repository root, with the environment activated:
@@ -62,7 +78,8 @@ From the repository root, with the environment activated:
 ```bash
 bash scripts/run.sh re2   # Main experiment: 270 cases
 bash scripts/run.sh re1   # Metric-only evaluation: 375 cases
-# Or run both suites:
+bash scripts/run.sh re3   # Code-fault evaluation: 90 cases
+# Or run all three suites:
 bash scripts/run.sh all
 ```
 
@@ -81,7 +98,7 @@ Compared with the paper's original inputs, the bundled RCAEval excludes duplicat
 ## 📂 Output
 
 - Predictions: `temp/output/ease/{dataset}/results/`.
-- Summaries: `temp/results/{re1,re2}/`, including `README.md`, `summary.csv`, `by_fault.csv`, `by_service_fault.csv`, and `cases.csv`.
+- Summaries: `temp/results/{re1,re2,re3}/`, including `README.md`, `summary.csv`, `by_fault.csv`, `by_service_fault.csv`, and `cases.csv`.
 
 Scores are service-level **AC@1–5**, **Avg@5** (mean of AC@1 through AC@5), and **MRR** (mean reciprocal rank over the complete service ranking). Database containers are folded into their services, and duplicate services are counted once.
 
@@ -90,6 +107,7 @@ To regenerate summaries after a complete run:
 ```bash
 python summarize_results.py --suite re2
 python summarize_results.py --suite re1
+python summarize_results.py --suite re3
 ```
 
 Repeated runs overwrite the corresponding predictions and summaries. Data and `temp/` outputs are excluded from Git.

@@ -231,7 +231,8 @@ def process(data_path):
 
     data_dir = dirname(data_path)
 
-    service, metric = basename(dirname(dirname(data_path))).split("_")
+    # Keep RE3 scenario suffixes (e.g. f3_1) in the output filename.
+    service, metric = basename(dirname(dirname(data_path))).split("_", 1)
     case = basename(dirname(data_path))
 
     rp = join(result_path, f"{service}_{metric}_{case}.json")
@@ -476,6 +477,7 @@ s_evaluator_io = Evaluator(max_k=max_k)
 f_evaluator_io = Evaluator(max_k=max_k)
 s_evaluator_socket = Evaluator(max_k=max_k)
 f_evaluator_socket = Evaluator(max_k=max_k)
+s_evaluators_code = {fault: Evaluator(max_k=max_k) for fault in ("f1", "f2", "f3", "f4", "f5")}
 
 for service in services:
     for fault in faults:
@@ -500,7 +502,8 @@ for service in services:
                 f_ranks = indicator_ranks(ranks)
 
                 s_evaluator.add_case(ranks=s_ranks, n_candidates=n_service, answer=Node(service, "unknown"))
-                f_evaluator.add_case(ranks=f_ranks, n_candidates=n_metric, answer=Node(service, fault))
+                if fault not in s_evaluators_code:
+                    f_evaluator.add_case(ranks=f_ranks, n_candidates=n_metric, answer=Node(service, fault))
 
                 if fault == "cpu":
                     s_evaluator_cpu.add_case(ranks=s_ranks, n_candidates=n_service, answer=Node(service, "unknown"))
@@ -543,6 +546,11 @@ for service in services:
                     s_evaluator_all.add_case(ranks=s_ranks, n_candidates=n_service, answer=Node(service, "unknown"))
                     f_evaluator_all.add_case(ranks=f_ranks, n_candidates=n_metric, answer=Node(service, "socket"))
 
+                elif fault in s_evaluators_code:
+                    # RE3 code faults have a service label, but no metric label.
+                    s_evaluators_code[fault].add_case(ranks=s_ranks, n_candidates=n_service, answer=Node(service, "unknown"))
+                    s_evaluator_all.add_case(ranks=s_ranks, n_candidates=n_service, answer=Node(service, "unknown"))
+
 
         eval_data["service-fault"].append(f"{service}_{fault}")
         eval_data["top_1_service"].append(s_evaluator.accuracy(1))
@@ -564,16 +572,17 @@ for name, s_evaluator, f_evaluator in [
     ("socket", s_evaluator_socket, f_evaluator_socket),
     ("delay", s_evaluator_lat, f_evaluator_lat),
     ("loss", s_evaluator_loss, f_evaluator_loss),
+    *[(fault, evaluator, None) for fault, evaluator in s_evaluators_code.items() if evaluator.num],
 ]:
     eval_data["service-fault"].append(f"overall_{name}")
     eval_data["top_1_service"].append(s_evaluator.accuracy(1))
     eval_data["top_3_service"].append(s_evaluator.accuracy(3))
     eval_data["top_5_service"].append(s_evaluator.accuracy(5))
     eval_data["avg@5_service"].append(s_evaluator.average(5))
-    eval_data["top_1_metric"].append(f_evaluator.accuracy(1))
-    eval_data["top_3_metric"].append(f_evaluator.accuracy(3))
-    eval_data["top_5_metric"].append(f_evaluator.accuracy(5))
-    eval_data["avg@5_metric"].append(f_evaluator.average(5))
+    eval_data["top_1_metric"].append(f_evaluator.accuracy(1) if f_evaluator is not None else None)
+    eval_data["top_3_metric"].append(f_evaluator.accuracy(3) if f_evaluator is not None else None)
+    eval_data["top_5_metric"].append(f_evaluator.accuracy(5) if f_evaluator is not None else None)
+    eval_data["avg@5_metric"].append(f_evaluator.average(5) if f_evaluator is not None else None)
 
     if name == "io":
         name = "disk"

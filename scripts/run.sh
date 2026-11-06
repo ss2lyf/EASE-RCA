@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: bash scripts/run.sh [re2|re1|all]"
+    echo "Usage: bash scripts/run.sh [re2|re1|re3|all]"
     echo "Default: re2. Uses the active Python environment (or PYTHON=/path/to/python)."
 }
 
@@ -14,7 +14,8 @@ fi
 case "${1:-re2}" in
     re1) suites=(re1) ;;
     re2) suites=(re2) ;;
-    all) suites=(re2 re1) ;;
+    re3) suites=(re3) ;;
+    all) suites=(re2 re1 re3) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -33,7 +34,7 @@ import sys
 from RCAEval.benchmark.datasets import DATASET_MAP
 
 for suite in sys.argv[1:]:
-    prefix, expected = ("re1", 125) if suite == "re1" else ("torai", 90)
+    prefix, expected = {"re1": ("re1", 125), "re2": ("torai", 90), "re3": ("re3", 30)}[suite]
     for system in ("ob", "ss", "tt"):
         dataset = f"{prefix}-{system}"
         directory = Path(DATASET_MAP[dataset])
@@ -44,7 +45,7 @@ for suite in sys.argv[1:]:
                 "Follow the Data section of the README."
             )
         required = ["data.csv"] if suite == "re1" else ["simple_metrics.csv", "logts.csv"]
-        if suite == "re2" and system != "ss":
+        if suite in ("re2", "re3") and system != "ss":
             required += ["tracets_err.csv", "tracets_lat.csv"]
         for case in cases:
             for name in required:
@@ -56,6 +57,8 @@ PY
 for suite in "${suites[@]}"; do
     if [[ "$suite" == re1 ]]; then
         datasets=(re1-ob re1-ss re1-tt)
+    elif [[ "$suite" == re3 ]]; then
+        datasets=(re3-ob re3-ss re3-tt)
     else
         datasets=(torai-ob torai-ss torai-tt)
     fi

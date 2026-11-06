@@ -48,17 +48,17 @@ def _robust_deviation_scores(normal_values, anomal_values, signed=False):
     anomal_values = np.asarray(anomal_values, dtype=float)
     median = np.nanmedian(normal_values)
     mad = np.nanmedian(np.abs(normal_values - median))
-    if np.isnan(mad) or mad < 1e-09:
+    if np.isnan(mad) or mad < 1e-9:
         std = np.nanstd(normal_values)
-        scale = std if std > 1e-09 else 1.0
+        scale = std if std > 1e-9 else 1.0
     else:
         # 1.4826 scales MAD to a standard deviation estimate under normality.
         scale = 1.4826 * mad
     scores = (anomal_values - median) / scale
     if not signed:
         scores = np.abs(scores)
-    neginf = -1000000000.0 if signed else 1000000000.0
-    return np.nan_to_num(scores, nan=0.0, posinf=1000000000.0, neginf=neginf)
+    neginf = -1e9 if signed else 1e9
+    return np.nan_to_num(scores, nan=0.0, posinf=1e9, neginf=neginf)
 
 
 def trend_statistics(
@@ -204,13 +204,13 @@ def _best_lead_correlation(source_traj, target_traj):
     best_lag = 0
     n = min(len(source_traj), len(target_traj))
     if n < 3:
-        return (best_corr, best_lag)
+        return best_corr, best_lag
     src = np.asarray(source_traj[:n], dtype=float)
     dst = np.asarray(target_traj[:n], dtype=float)
     src_std = np.std(src)
     dst_std = np.std(dst)
     if src_std < 1e-12 or dst_std < 1e-12:
-        return (0.0, 0)
+        return 0.0, 0
     src_norm = (src - np.mean(src)) / src_std
     dst_norm = (dst - np.mean(dst)) / dst_std
     xcorr = np.correlate(dst_norm, src_norm, mode="full")
@@ -222,7 +222,7 @@ def _best_lead_correlation(source_traj, target_traj):
     best_idx = int(np.argmax(correlations))
     best_corr = float(correlations[best_idx])
     best_lag = best_idx
-    return (max(0.0, best_corr), best_lag)
+    return max(0.0, best_corr), best_lag
 
 
 def _build_service_metric_trajectories(metric_trajectories):
@@ -297,7 +297,7 @@ def _local_explain_order(
             corr, lag = _best_lead_correlation(src, dst)
             src_onset = onset_map.get(hypothesis, np.inf)
             dst_onset = onset_map.get(observed, np.inf)
-            if np.isfinite(src_onset) and np.isfinite(dst_onset) and (n > 1):
+            if np.isfinite(src_onset) and np.isfinite(dst_onset) and n > 1:
                 onset_gap = float(dst_onset - src_onset)
                 lead = max(0.0, min(1.0, onset_gap / float(n - 1)))
             else:
@@ -305,10 +305,10 @@ def _local_explain_order(
             # corr measures propagation strength after lead alignment; lead is the
             # onset-time prior.
             score = (max(float(corr), 0.0) + lead_weight * lead) / (1.0 + lead_weight)
-            score = max(score, 1e-08)
+            score = max(score, 1e-8)
             # Multiply by the source's normalized multimodal base score as the prior.
             weights[hypothesis] = score * max(
-                float(base_norm.get(hypothesis, 0.0)), 1e-08
+                float(base_norm.get(hypothesis, 0.0)), 1e-8
             )
             z += weights[hypothesis]
         z += 1e-12
@@ -349,7 +349,7 @@ def _score_columns_by_robust_shift(normal_df, anomal_df):
         b = anomal_df[col].to_numpy()
         score = float(np.max(_robust_deviation_scores(a, b)))
         column_scores.append((col, score))
-    total = sum((score for _, score in column_scores))
+    total = sum(score for _, score in column_scores)
     if total == 0:
         uniform = 1.0 / len(column_scores)
         return [(name, uniform) for name, _ in column_scores]
@@ -385,14 +385,12 @@ def ease(data, inject_time=None, dataset=None, **kwargs):
     if not 0 < severity_quantile < 1:
         raise ValueError("severity_quantile must be strictly between 0 and 1")
     if any(
-        (
-            weight <= 0
-            for weight in (
-                metric_base_weight,
-                log_weight,
-                trace_latency_weight,
-                trace_error_weight,
-            )
+        weight <= 0
+        for weight in (
+            metric_base_weight,
+            log_weight,
+            trace_latency_weight,
+            trace_error_weight,
         )
     ):
         raise ValueError("modality weights must be positive")
@@ -407,8 +405,8 @@ def ease(data, inject_time=None, dataset=None, **kwargs):
     has_traces = (
         traces_err is not None
         and len(traces_err) > 0
-        and (traces_lat is not None)
-        and (len(traces_lat) > 0)
+        and traces_lat is not None
+        and len(traces_lat) > 0
     )
     # Keep raw values when the smoothing window is 1; then sample at equal
     # intervals on the original 1-second grid.

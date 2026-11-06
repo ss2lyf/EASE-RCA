@@ -1,4 +1,4 @@
-"""Summarize EASE's RE1 or TORAI-preprocessed RE2 service rankings."""
+"""Summarize EASE's RE1, TORAI-preprocessed RE2, or converted RE3 service rankings."""
 
 import argparse
 import csv
@@ -76,13 +76,11 @@ def table(rows, keys):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=("re1", "re2"), default="re2")
+    parser.add_argument("--suite", choices=("re1", "re2", "re3"), default="re2")
     args = parser.parse_args()
-    datasets = (
-        ("re1-ob", "re1-ss", "re1-tt")
-        if args.suite == "re1" else ("torai-ob", "torai-ss", "torai-tt")
-    )
-    expected_count = 125 if args.suite == "re1" else 90
+    prefix = "torai" if args.suite == "re2" else args.suite
+    datasets = tuple(f"{prefix}-{system}" for system in ("ob", "ss", "tt"))
+    expected_count = {"re1": 125, "re2": 90, "re3": 30}[args.suite]
     cases = []
     for dataset in datasets:
         data_dir = ROOT / "RCAEval" / DATASET_MAP[dataset]
@@ -99,10 +97,14 @@ def main():
                 f"{dataset}: missing results {sorted(expected - actual)}; unexpected results {sorted(actual - expected)}"
             )
         for path in injections:
-            service, fault = path.parent.parent.name.rsplit("_", 1)
+            scenario = path.parent.parent.name
+            service, fault = scenario.split("_", 1)
+            if args.suite == "re3":
+                # f3 and f3_1 are different scenarios of the same fault type.
+                fault = fault.split("_", 1)[0]
             case_id = path.parent.name
             prediction = json.loads(
-                (result_dir / f"{service}_{fault}_{case_id}.json").read_text()
+                (result_dir / f"{scenario}_{case_id}.json").read_text()
             )
             if set(prediction) != {"0"} or not isinstance(prediction["0"], list):
                 raise ValueError(
@@ -120,7 +122,8 @@ def main():
                     "dataset": dataset,
                     "service": service,
                     "fault": fault,
-                    "case": case_id,
+                    # Preserve the scenario suffix to distinguish RE3 repeats.
+                    "case": f"{scenario}/{case_id}" if args.suite == "re3" else case_id,
                     "root_cause_rank": rank,
                     "ranks": ranks,
                 }
@@ -141,14 +144,18 @@ def main():
         output / "cases.csv",
         [{**case, "ranks": json.dumps(case["ranks"])} for case in cases],
     )
-    suite_name = "RE1" if args.suite == "re1" else "TORAI-preprocessed RE2"
-    cases_per_fault = 25 if args.suite == "re1" else 15
+    suite_name = {"re1": "RE1", "re2": "TORAI-preprocessed RE2", "re3": "RE3"}[args.suite]
+    case_description = (
+        "RE3 fault-type counts vary by system; absent fault types are omitted."
+        if args.suite == "re3"
+        else f"Each fault type has {25 if args.suite == 're1' else 15} cases per dataset."
+    )
     window = "up to 600 metric rows on each side of injection"
-    if args.suite == "re2":
+    if args.suite in ("re2", "re3"):
         window += " and 40 rows per log/trace modality on each side"
     report = [
         f"# EASE: {suite_name} results",
-        f"Service-level evaluation on all {len(cases)} cases. Each dataset has {expected_count} cases; each fault type has {cases_per_fault} cases per dataset.",
+        f"Service-level evaluation on all {len(cases)} cases. Each dataset has {expected_count} cases. {case_description}",
         f"The run uses the original RCAEval loader with --length 20 --tdelta 0: {window}. Original missing-value filling is preserved. All cases are included, including cases with incomplete telemetry.",
         "AC@k is the fraction of cases whose root-cause service appears in the first k distinct services. Avg@5 is the mean of AC@1 through AC@5. MRR is the mean reciprocal root-cause rank over the complete service ranking, with zero for an absent root cause. Overall scores are weighted by case count. EASE returns service rankings, so indicator-level accuracy is not reported.",
         "## Overall and per dataset",

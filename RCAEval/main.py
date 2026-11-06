@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from RCAEval.benchmark.datasets import DATASET_MAP, download_dataset
+from RCAEval.benchmark.datasets import DATASET_MAP, RE1_DATASETS, download_dataset
 from RCAEval.benchmark.evaluation import Evaluator
 from RCAEval.benchmark.scoring import fault_to_indicator, indicator_ranks, service_ranks
 from RCAEval.benchmark.sli import SLI_METHODS, NoSLIError, select_sli
@@ -36,6 +36,7 @@ if is_modern_py():
     # not installed (e.g. torch) is simply unavailable and rejected by
     # parse_args with a clear error
     for _method in [
+        "ease",
         "baro",
         "causalrca",
         "circa",
@@ -170,7 +171,9 @@ if args.test is True:
 # prepare output paths
 from tempfile import TemporaryDirectory
 # output_path = TemporaryDirectory().name
-output_path = "output"
+output_path = join(dirname(abspath(__file__)), "..", "temp", "output")
+if args.method == "ease":
+    output_path = join(output_path, args.method, args.dataset)
 report_path = join(output_path, f"report.xlsx")
 result_path = join(output_path, "results")
 os.makedirs(result_path, exist_ok=True)
@@ -296,8 +299,11 @@ def process(data_path):
         sli = None
 
     # == Multi-source data loading (multi-source methods and torai) ==
-    MM_METHODS = ("mmbaro", "mmnsigma", "mmrcd", "mmcirca")
-    if args.method in MM_METHODS or ("torai" in args.dataset and args.method == "torai"):
+    MM_METHODS = ("ease", "mmbaro", "mmnsigma", "mmrcd", "mmcirca")
+    if args.method == "ease" and args.dataset in RE1_DATASETS:
+        # RE1 supplies metrics only; EASE already supports absent auxiliary modalities.
+        data = {"metric": data}
+    elif args.method in MM_METHODS or ("torai" in args.dataset and args.method == "torai"):
         logts = pd.read_csv(os.path.join(data_dir, "logts.csv"))
 
         traces_err = pd.DataFrame()
@@ -402,6 +408,8 @@ def print_decomposition(evaluator, depth, suffix=""):
 max_k = max(5, args.report_decomposition if isinstance(args.report_decomposition, int) else 0)
 
 rps = glob.glob(join(result_path, "*.json"))
+if args.method == "ease":
+    rps = [rp for rp in rps if basename(rp) in n_candidates_map]
 
 if "eventadl" in args.dataset:
     # EventADL result files only, keyed on the literal "event" fault token
@@ -549,6 +557,7 @@ for service in services:
 
 print("--- Evaluation results ---")
 for name, s_evaluator, f_evaluator in [
+    ("all", s_evaluator_all, f_evaluator_all),
     ("cpu", s_evaluator_cpu, f_evaluator_cpu),
     ("mem", s_evaluator_mem, f_evaluator_mem),
     ("io", s_evaluator_io, f_evaluator_io),
@@ -570,6 +579,9 @@ for name, s_evaluator, f_evaluator in [
         name = "disk"
 
     if s_evaluator.average(5) is not None:
+        print(f"AC@1-{name.upper()}:".ljust(12), round(s_evaluator.accuracy(1), 4))
+        print(f"AC@3-{name.upper()}:".ljust(12), round(s_evaluator.accuracy(3), 4))
+        print(f"AC@5-{name.upper()}:".ljust(12), round(s_evaluator.accuracy(5), 4))
         print( f"Avg@5-{name.upper()}:".ljust(12), round(s_evaluator.average(5), 2))
         if args.report_chance:
             print_chance(s_evaluator, suffix=f"-{name.upper()}")

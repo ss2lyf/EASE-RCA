@@ -221,3 +221,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local tests, datasets, and experiment artifacts
+/temp/
+/RCAEval/data/
+/RCAEval/output/

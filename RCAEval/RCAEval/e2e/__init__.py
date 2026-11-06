@@ -42,6 +42,7 @@ if is_modern_py():
     # package; main.py reports a clear error if an unavailable method is
     # requested.
     _METHOD_MODULES = {
+        "ease": ["ease"],
         "baro": ["baro", "mmbaro", "mmnsigma"],
         "causalrca": ["causalrca"],
         "circa": ["circa", "mmcirca"],

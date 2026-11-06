@@ -1,0 +1,8 @@
+# EASE-RCA reproduction environment: Python 3.12.
+numpy==1.26.4
+pandas==3.0.2
+scipy==1.17.1
+scikit-learn==1.7.2
+networkx==2.5
+requests==2.30.0
+tqdm==4.65.0

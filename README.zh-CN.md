@@ -114,6 +114,10 @@ python summarize_results.py --suite re3
 
 RCAEval 及第三方许可证保留在 [RCAEval/LICENSE](RCAEval/LICENSE) 和 [RCAEval/LICENSES](RCAEval/LICENSES)。
 
+## 🤝 致谢
+
+感谢 [RCAEval](https://github.com/phamquiluan/RCAEval) 的作者和贡献者公开评测框架与数据集。
+
 ## 📖 引用
 
 如果我们的工作或代码对你的研究有所帮助，欢迎引用以下论文：

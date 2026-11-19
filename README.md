@@ -114,6 +114,10 @@ Repeated runs overwrite the corresponding predictions and summaries. Data and `t
 
 RCAEval and third-party licenses are retained in [RCAEval/LICENSE](RCAEval/LICENSE) and [RCAEval/LICENSES](RCAEval/LICENSES).
 
+## 🤝 Acknowledgments
+
+We thank the authors and contributors of [RCAEval](https://github.com/phamquiluan/RCAEval) for sharing their evaluation framework and datasets.
+
 ## 📖 Citation
 
 If you find our work or code useful for your research, please consider citing our paper:
